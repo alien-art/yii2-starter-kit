@@ -1,4 +1,5 @@
 <?php
+
 namespace common\models;
 
 use common\commands\AddToTimelineCommand;
@@ -52,6 +53,17 @@ class User extends ActiveRecord implements IdentityInterface
     }
 
     /**
+     * @inheritdoc
+     */
+    public static function findIdentity($id)
+    {
+        return static::find()
+            ->active()
+            ->andWhere(['id' => $id])
+            ->one();
+    }
+
+    /**
      * @return UserQuery
      */
     public static function find()
@@ -62,19 +74,58 @@ class User extends ActiveRecord implements IdentityInterface
     /**
      * @inheritdoc
      */
+    public static function findIdentityByAccessToken($token, $type = null)
+    {
+        return static::find()
+            ->active()
+            ->andWhere(['access_token' => $token])
+            ->one();
+    }
+
+    /**
+     * Finds user by username
+     *
+     * @param string $username
+     * @return User|array|null
+     */
+    public static function findByUsername($username)
+    {
+        return static::find()
+            ->active()
+            ->andWhere(['username' => $username])
+            ->one();
+    }
+
+    /**
+     * Finds user by username or email
+     *
+     * @param string $login
+     * @return User|array|null
+     */
+    public static function findByLogin($login)
+    {
+        return static::find()
+            ->active()
+            ->andWhere(['or', ['username' => $login], ['email' => $login]])
+            ->one();
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function behaviors()
     {
         return [
-            TimestampBehavior::className(),
+            TimestampBehavior::class,
             'auth_key' => [
-                'class' => AttributeBehavior::className(),
+                'class' => AttributeBehavior::class,
                 'attributes' => [
                     ActiveRecord::EVENT_BEFORE_INSERT => 'auth_key'
                 ],
                 'value' => Yii::$app->getSecurity()->generateRandomString()
             ],
             'access_token' => [
-                'class' => AttributeBehavior::className(),
+                'class' => AttributeBehavior::class,
                 'attributes' => [
                     ActiveRecord::EVENT_BEFORE_INSERT => 'access_token'
                 ],
@@ -100,7 +151,6 @@ class User extends ActiveRecord implements IdentityInterface
         );
     }
 
-
     /**
      * @inheritdoc
      */
@@ -111,6 +161,19 @@ class User extends ActiveRecord implements IdentityInterface
             ['status', 'default', 'value' => self::STATUS_NOT_ACTIVE],
             ['status', 'in', 'range' => array_keys(self::statuses())],
             [['username'], 'filter', 'filter' => '\yii\helpers\Html::encode']
+        ];
+    }
+
+    /**
+     * Returns user statuses list
+     * @return array|mixed
+     */
+    public static function statuses()
+    {
+        return [
+            self::STATUS_NOT_ACTIVE => Yii::t('common', 'Not Active'),
+            self::STATUS_ACTIVE => Yii::t('common', 'Active'),
+            self::STATUS_DELETED => Yii::t('common', 'Deleted')
         ];
     }
 
@@ -135,73 +198,7 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public function getUserProfile()
     {
-        return $this->hasOne(UserProfile::className(), ['user_id' => 'id']);
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public static function findIdentity($id)
-    {
-        return static::find()
-            ->active()
-            ->andWhere(['id' => $id])
-            ->one();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public static function findIdentityByAccessToken($token, $type = null)
-    {
-        return static::find()
-            ->active()
-            ->andWhere(['access_token' => $token, 'status' => self::STATUS_ACTIVE])
-            ->one();
-    }
-
-    /**
-     * Finds user by username
-     *
-     * @param string $username
-     * @return static|null
-     */
-    public static function findByUsername($username)
-    {
-        return static::find()
-            ->active()
-            ->andWhere(['username' => $username, 'status' => self::STATUS_ACTIVE])
-            ->one();
-    }
-
-    /**
-     * Finds user by username or email
-     *
-     * @param string $login
-     * @return static|null
-     */
-    public static function findByLogin($login)
-    {
-        return static::find()
-            ->active()
-            ->andWhere(['or', ['username' => $login], ['email' => $login]])
-            ->one();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function getId()
-    {
-        return $this->getPrimaryKey();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function getAuthKey()
-    {
-        return $this->auth_key;
+        return $this->hasOne(UserProfile::class, ['user_id' => 'id']);
     }
 
     /**
@@ -210,6 +207,14 @@ class User extends ActiveRecord implements IdentityInterface
     public function validateAuthKey($authKey)
     {
         return $this->getAuthKey() === $authKey;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getAuthKey()
+    {
+        return $this->auth_key;
     }
 
     /**
@@ -231,19 +236,6 @@ class User extends ActiveRecord implements IdentityInterface
     public function setPassword($password)
     {
         $this->password_hash = Yii::$app->getSecurity()->generatePasswordHash($password);
-    }
-
-    /**
-     * Returns user statuses list
-     * @return array|mixed
-     */
-    public static function statuses()
-    {
-        return [
-            self::STATUS_NOT_ACTIVE => Yii::t('common', 'Not Active'),
-            self::STATUS_ACTIVE => Yii::t('common', 'Active'),
-            self::STATUS_DELETED => Yii::t('common', 'Deleted')
-        ];
     }
 
     /**
@@ -284,5 +276,13 @@ class User extends ActiveRecord implements IdentityInterface
             return $this->username;
         }
         return $this->email;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getId()
+    {
+        return $this->getPrimaryKey();
     }
 }
